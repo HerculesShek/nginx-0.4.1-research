@@ -1,0 +1,9 @@
+# Created by .ignore support plugin (hsz.mobi)
+.idea
+Makefile
+cmake-build-debug
+objs
+.hgtags
+.git_bak
+
+
