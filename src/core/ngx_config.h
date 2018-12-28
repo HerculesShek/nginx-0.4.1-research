@@ -7,7 +7,9 @@
 #ifndef _NGX_CONFIG_H_INCLUDED_
 #define _NGX_CONFIG_H_INCLUDED_
 
-
+/*
+ * ngx_auto_headers.h 是由configure所生成 存在于默认的objs目录下
+ */
 #include <ngx_auto_headers.h>
 
 
@@ -50,6 +52,7 @@
 #define ngx_signal_value(n)      ngx_signal_helper(n)
 
 /* TODO: #ifndef */
+// 定义的信号值。
 #define NGX_SHUTDOWN_SIGNAL      QUIT
 #define NGX_TERMINATE_SIGNAL     TERM
 #define NGX_NOACCEPT_SIGNAL      WINCH

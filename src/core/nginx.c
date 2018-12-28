@@ -180,6 +180,10 @@ static ngx_uint_t  ngx_show_version;
 static char  *ngx_null_environ = NULL;
 
 
+/**
+ * 在nginx中,worker和master的交互,是通过流管道以及信号
+ * 而master与外部的交互是通过信号来进行的
+ */
 int ngx_cdecl
 main(int argc, char *const *argv)
 {

@@ -506,6 +506,7 @@ ngx_event_module_init(ngx_cycle_t *cycle)
     shm.size = size;
     shm.log = cycle->log;
 
+    // 父子进程间共享内存
     if (ngx_shm_alloc(&shm) != NGX_OK) {
         return NGX_ERROR;
     }

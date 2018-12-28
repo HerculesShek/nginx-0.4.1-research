@@ -13,7 +13,7 @@
 
 
 typedef struct {
-    time_t      sec;
+    time_t      sec;  // long
     ngx_uint_t  msec;
     ngx_int_t   gmtoff;
 } ngx_time_t;

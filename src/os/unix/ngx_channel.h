@@ -12,12 +12,12 @@
 #include <ngx_core.h>
 #include <ngx_event.h>
 
-
+// 父子进程之间传递信息的结构体 主要是父进程对子进程下命令用的。
 typedef struct {
-     ngx_uint_t  command;
-     ngx_pid_t   pid;
-     ngx_int_t   slot;
-     ngx_fd_t    fd;
+     ngx_uint_t  command;   // 对端将要做得命令。
+     ngx_pid_t   pid;       // 当前的子进程id
+     ngx_int_t   slot;      // 在全局进程表中的位置
+     ngx_fd_t    fd;        // 传递的fd
 } ngx_channel_t;
 
 

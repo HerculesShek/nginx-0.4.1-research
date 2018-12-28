@@ -20,6 +20,12 @@
  */
 
 
+/**
+ *  int ioctl(int fd, unsigned long request, ...);
+ *  The argument fd must be an open file descriptor.
+ */
+
+
 #if (NGX_HAVE_FIONBIO)
 
 int

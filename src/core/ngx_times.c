@@ -20,7 +20,7 @@
 #define NGX_TIME_SLOTS   64
 
 static ngx_uint_t        slot = NGX_TIME_SLOTS;
-static ngx_atomic_t      ngx_time_lock;
+static ngx_atomic_t      ngx_time_lock;  /* default value is 0 */
 
 volatile ngx_msec_t      ngx_current_msec;
 volatile ngx_time_t     *ngx_cached_time;
@@ -62,14 +62,21 @@ void
 ngx_time_update(time_t sec, ngx_uint_t msec)
 {
     u_char          *p0, *p1, *p2;
-    ngx_tm_t         tm, gmt;
+    ngx_tm_t         tm, gmt;       /* Greenwich Mean Time */
     ngx_time_t      *tp;
-    struct timeval   tv;
+    struct timeval   tv;            /* 表示一个时间点 */
 
+    /*
+     * TODO 多线程中只有一个线程可以更新这个时间
+     *
+     */
     if (!ngx_trylock(&ngx_time_lock)) {
         return;
     }
 
+    /**
+     * slot是循环增加的 每次调用此函数时修改其值
+     */
     if (slot == NGX_TIME_SLOTS) {
         slot = 0;
     } else {
@@ -77,6 +84,8 @@ ngx_time_update(time_t sec, ngx_uint_t msec)
     }
 
     if (sec == 0) {
+        /* 获取当前的时间  1,000,000 usec = 1s */
+        /* now: tv.tv_sec is 1545217892, and tv.tv_usec is 114575 */
         ngx_gettimeofday(&tv);
 
         sec = tv.tv_sec;

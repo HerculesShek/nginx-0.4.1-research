@@ -17,6 +17,10 @@
  * The "=&b" means that no input registers can be used.
  */
 
+/*
+ * PowerPC assembly
+ */
+
 static ngx_inline ngx_atomic_uint_t
 ngx_atomic_cmp_set(ngx_atomic_t *lock, ngx_atomic_uint_t old,
     ngx_atomic_uint_t set)
