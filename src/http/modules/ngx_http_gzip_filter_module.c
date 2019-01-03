@@ -1110,6 +1110,17 @@ ngx_http_gzip_merge_conf(ngx_conf_t *cf, void *parent, void *child)
 }
 
 
+/**
+ * 这里nginx处理filter将所有的过滤器做成一个类似链表的东东,每次声明一个ngx_http_next_header_filter
+ * 以及ngx_http_next_body_filter来保存当前的最前面的filter,然后再将自己的filter处理函数赋值给
+ * ngx_http_top_header_filter以及ngx_http_top_body_filter ,这样也就是说最后面初始化的filter
+ * 反而是最早处理。
+ * 而在模块本身的filter处理函数中会调用ngx_http_next_header_filter,也就是当前filter插入前的那个
+ * 最top上的filter处理函数。
+ *
+ * @param cf
+ * @return
+ */
 static ngx_int_t
 ngx_http_gzip_filter_init(ngx_conf_t *cf)
 {

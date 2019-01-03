@@ -256,37 +256,54 @@ ngx_event_accept(ngx_event_t *ev)
 }
 
 
+/**
+ * 尝试获得accept mutex.
+ * @param cycle
+ * @return
+ */
 ngx_int_t
 ngx_trylock_accept_mutex(ngx_cycle_t *cycle)
 {
+    //尝试获得锁
     if (ngx_shmtx_trylock(&ngx_accept_mutex)) {
 
         ngx_log_debug0(NGX_LOG_DEBUG_EVENT, cycle->log, 0,
                        "accept mutex locked");
 
+        //如果本来已经获得锁,则直接返回Ok
         if (ngx_accept_mutex_held && !(ngx_event_flags & NGX_USE_RTSIG_EVENT)) {
             return NGX_OK;
         }
 
+        //到达这里,说明重新获得锁成功,因此需要打开被关闭的listening句柄。
         if (ngx_enable_accept_events(cycle) == NGX_ERROR) {
             ngx_shmtx_unlock(&ngx_accept_mutex);
             return NGX_ERROR;
         }
 
+        //设置获得锁的标记。
         ngx_accept_mutex_held = 1;
 
         return NGX_OK;
     }
 
+    //如果我们前面已经获得了锁,然后这次获得锁失败,则说明当前的listen句柄已经被其他的进程锁监听,因此此时需要从epoll中移出调已经注册的listen句柄。这样就很好的控制了子进程的负载均衡
     if (ngx_accept_mutex_held) {
         if (ngx_disable_accept_events(cycle) == NGX_ERROR) {
             return NGX_ERROR;
         }
 
+        //设置锁的持有为0.
         ngx_accept_mutex_held = 0;
     }
 
     return NGX_OK;
+
+//    这里可以看到大部分情况下,每次只会有一个进程在监听listen句柄,而只有当ngx_accept_disabled大于0的
+//    情况下,才会出现一定程度的惊群。
+//
+//    而nginx中,由于锁的控制(以及获得锁的定时器),每个进程都能相对公平的accept句柄,也就是比较好的解决
+//    了子进程负载均衡。
 }
 
 

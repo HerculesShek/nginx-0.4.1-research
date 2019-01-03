@@ -66,7 +66,10 @@ ngx_cpuid(uint32_t i, uint32_t *buf)
 #endif
 
 
-/* auto detect the L2 cache line size of modern and widespread CPUs */
+/**
+ * auto detect the L2 cache line size of modern and widespread CPUs
+ * 调用汇编代码 获取cpu二级缓存大小
+ */
 
 void
 ngx_cpuinfo(void)

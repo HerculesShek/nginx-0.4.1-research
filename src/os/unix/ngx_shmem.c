@@ -10,6 +10,11 @@
 
 #if (NGX_HAVE_MAP_ANON)
 
+/**
+ * 分配共享内存
+ * @param shm
+ * @return
+ */
 ngx_int_t
 ngx_shm_alloc(ngx_shm_t *shm)
 {

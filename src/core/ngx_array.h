@@ -11,7 +11,9 @@
 #include <ngx_config.h>
 #include <ngx_core.h>
 
-
+/**
+ * 动态数组
+ */
 struct ngx_array_s {
     void        *elts;
     ngx_uint_t   nelts;

@@ -38,7 +38,12 @@ static ngx_str_t  error_log = ngx_string(NGX_ERROR_LOG_PATH);
 static ngx_str_t  error_log = ngx_null_string;
 #endif
 
-
+/**
+ * 配置文件的初始化
+ *
+ * @param old_cycle
+ * @return
+ */
 ngx_cycle_t *
 ngx_init_cycle(ngx_cycle_t *old_cycle)
 {

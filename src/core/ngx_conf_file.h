@@ -108,7 +108,7 @@ struct ngx_open_file_s {
 #define NGX_MODULE_V1_PADDING  0, 0, 0, 0, 0, 0, 0, 0
 
 struct ngx_module_s {
-    ngx_uint_t            ctx_index;
+    ngx_uint_t            ctx_index; //ctx索引 ctx_index保存了每一个http module的config的索引
     ngx_uint_t            index;
 
     ngx_uint_t            spare0;
@@ -118,9 +118,9 @@ struct ngx_module_s {
 
     ngx_uint_t            version;
 
-    void                 *ctx;
+    void                 *ctx; // ngx_core_module_t 或者是 ngx_http_module_t 类型
     ngx_command_t        *commands;
-    ngx_uint_t            type;
+    ngx_uint_t            type; // 标识模块的类型
 
     ngx_int_t           (*init_master)(ngx_log_t *log);
 

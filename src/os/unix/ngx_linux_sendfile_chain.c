@@ -32,7 +32,15 @@
 #define NGX_HEADERS  IOV_MAX
 #endif
 
-
+/**
+ * 一般来说,我们最终都会调用这个函数来发送最终的数据,因此我们来着重分析这个函数,
+ * 这里主要就是对buf的一些参数的理解
+ *
+ * @param c
+ * @param in
+ * @param limit
+ * @return
+ */
 ngx_chain_t *
 ngx_linux_sendfile_chain(ngx_connection_t *c, ngx_chain_t *in, off_t limit)
 {

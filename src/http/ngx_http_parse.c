@@ -11,6 +11,13 @@
 
 /* gcc, icc, msvc and others compile these switches as an jump table */
 
+/**
+ * well well well 这就是个状态机！
+ *
+ * @param r
+ * @param b
+ * @return
+ */
 ngx_int_t
 ngx_http_parse_request_line(ngx_http_request_t *r, ngx_buf_t *b)
 {
@@ -51,22 +58,28 @@ ngx_http_parse_request_line(ngx_http_request_t *r, ngx_buf_t *b)
         case sw_start:
             r->request_start = p;
 
+            //如果是回车换行则跳出switch,然后继续解析
             if (ch == CR || ch == LF) {
                 break;
             }
 
+            //不是A到Z的字母(大小写敏感的),并且不是_则返回错误
             if (ch < 'A' || ch > 'Z') {
                 return NGX_HTTP_PARSE_INVALID_METHOD;
             }
 
+            //到达这里说明下一步改解析方法了。因此下一个状态就是method
             state = sw_method;
             break;
 
         case sw_method:
+            //如果再次读到空格则说明我们已经准备解析request-URL,此时我们就能得到请求方法了
             if (ch == ' ') {
+                //先得到method的结束位置
                 r->method_end = p - 1;
                 m = r->request_start;
 
+                //得到方法的长度,通过长度来得到具体不同的方法,然后给request的method赋值。
                 switch (p - m) {
 
                 case 3:
@@ -108,6 +121,7 @@ ngx_http_parse_request_line(ngx_http_request_t *r, ngx_buf_t *b)
                     break;
                 }
 
+                //下一个状态准备开始解析URI
                 state = sw_spaces_before_uri;
                 break;
             }
@@ -130,9 +144,12 @@ ngx_http_parse_request_line(ngx_http_request_t *r, ngx_buf_t *b)
             break;
 
         /* space* before URI */
+        //然后是sw_spaces_before_uri状态,这里由于uri会有两种情况,一种是带schema的,一种是直接相对路径的
+        //(可以看前面的uri格式).
         case sw_spaces_before_uri:
 
             c = (u_char) (ch | 0x20);
+            //如果是字母,则进入sw_schema处理
             if (c >= 'a' && c <= 'z') {
                 r->schema_start = p;
                 state = sw_schema;
@@ -140,10 +157,12 @@ ngx_http_parse_request_line(ngx_http_request_t *r, ngx_buf_t *b)
             }
 
             switch (ch) {
+            //如果是以/开始,则进入sw_after_slash_in_uri
             case '/':
                 r->uri_start = p;
                 state = sw_after_slash_in_uri;
                 break;
+            //空格的话继续这个状态。
             case ' ':
                 break;
             default:
@@ -151,26 +170,34 @@ ngx_http_parse_request_line(ngx_http_request_t *r, ngx_buf_t *b)
             }
             break;
 
+        //sw_schema状态主要是用来解析协议类型。等到协议类型解析完毕则进入sw_schema_slash状态.
         case sw_schema:
 
             c = (u_char) (ch | 0x20);
+            //如果是字母则break,然后继续这个状态的处理。
             if (c >= 'a' && c <= 'z') {
                 break;
             }
 
+            //到这里说明schema已经结束。
             switch (ch) {
+            //这里必须是:,如果不是冒号则直接返回错误。
             case ':':
+                //设置schema_end,而start我们在上面已经设置过了
                 r->schema_end = p;
+                //设置下一个状态。
                 state = sw_schema_slash;
                 break;
             default:
                 return NGX_HTTP_PARSE_INVALID_REQUEST;
             }
             break;
-
+        // sw_schema_slash和sw_schema_slash_slash是两个很简单的状态,第一个是得到schema的第一个/,然后进
+        // 入sw_schema_slash_slash,而sw_schema_slash_slash则是得到了第二个/.然后进入sw_host。
         case sw_schema_slash:
             switch (ch) {
             case '/':
+                //进入slash_slash
                 state = sw_schema_slash_slash;
                 break;
             default:
@@ -181,7 +208,9 @@ ngx_http_parse_request_line(ngx_http_request_t *r, ngx_buf_t *b)
         case sw_schema_slash_slash:
             switch (ch) {
             case '/':
+                //设置host的开始指针
                 r->host_start = p;
+                //设置下一个状态为sw_host.
                 state = sw_host;
                 break;
             default:
@@ -189,9 +218,11 @@ ngx_http_parse_request_line(ngx_http_request_t *r, ngx_buf_t *b)
             }
             break;
 
+        // 然后是sw_host状态,这个状态用来解析host。
         case sw_host:
 
             c = (u_char) (ch | 0x20);
+            // 两个判断可以写在一起？
             if (c >= 'a' && c <= 'z') {
                 break;
             }
@@ -203,10 +234,13 @@ ngx_http_parse_request_line(ngx_http_request_t *r, ngx_buf_t *b)
 
             switch (ch) {
             case ':':
+                //到达这里说明host已经得到,因此设置end指针。
+                //冒号说明host有跟端口的,因此进入port状态。
                 r->host_end = p;
                 state = sw_port;
                 break;
             case '/':
+                //这个说明要开始解析path了。因此设置uri的start,然后进入slash_in_uri
                 r->host_end = p;
                 r->uri_start = p;
                 state = sw_after_slash_in_uri;
@@ -216,12 +250,14 @@ ngx_http_parse_request_line(ngx_http_request_t *r, ngx_buf_t *b)
             }
             break;
 
+        // 接下来是sw_port,这个状态用来解析协议端口。
         case sw_port:
             if (ch >= '0' && ch <= '9') {
                 break;
             }
-
+            //如果到达这里说明端口解析完毕, 然后就来判断下一步需要的状态。
             switch (ch) {
+            //如果紧跟着/,则说明后面是uri,因此进入uri解析,并设置port_end
             case '/':
                 r->port_end = p;
                 r->uri_start = p;
@@ -233,6 +269,8 @@ ngx_http_parse_request_line(ngx_http_request_t *r, ngx_buf_t *b)
             break;
 
         /* check "/.", "//", "%", and "\" (Win32) in URI */
+        // 接下来是sw_after_slash_in_uri,sw_check_uri 这两个状态都是解析uri之前的状态,
+        // 主要用于检测uri, 比如complex uri等
         case sw_after_slash_in_uri:
 
             c = (u_char) (ch | 0x20);
@@ -351,8 +389,10 @@ ngx_http_parse_request_line(ngx_http_request_t *r, ngx_buf_t *b)
             break;
 
         /* URI */
+        // 这个状态就是开始解析uri。这里可以看到对http 0.9是特殊处理的,如果直接是回车或者换行的话,就进入http 0.9的处理。
         case sw_uri:
             switch (ch) {
+            //下面三种情况都说明是http 0.9
             case ' ':
                 r->uri_end = p;
                 state = sw_http_09;
@@ -372,6 +412,9 @@ ngx_http_parse_request_line(ngx_http_request_t *r, ngx_buf_t *b)
             }
             break;
 
+        // 接下来的sw_http_09,sw_http_H,sw_http_HT,sw_http_HTT,sw_http_HTTP,
+        //sw_first_major_digit,sw_major_digit,sw_first_minor_digit,sw_minor_digit,这几个状态主要是用来解析http
+        //的版本号的,都比较简单
         /* space+ after URI */
         case sw_http_09:
             switch (ch) {
@@ -470,11 +513,13 @@ ngx_http_parse_request_line(ngx_http_request_t *r, ngx_buf_t *b)
         /* minor HTTP version or end of request line */
         case sw_minor_digit:
             if (ch == CR) {
+                //如果是回车,则进入almost_done,然后等待最后一个换行。
                 state = sw_almost_done;
                 break;
             }
 
             if (ch == LF) {
+                //如果是换行则说明request-line解析完毕
                 goto done;
             }
 
@@ -486,6 +531,7 @@ ngx_http_parse_request_line(ngx_http_request_t *r, ngx_buf_t *b)
             break;
 
         /* end of request line */
+        //最后是almost_done状态,也就是等待最后的换行。
         case sw_almost_done:
             r->request_end = p - 1;
             switch (ch) {
@@ -520,7 +566,15 @@ done:
     return NGX_OK;
 }
 
-
+/**
+ *  此函数直解析一个header 供ngx_http_process_request_headers调用
+ * @param r
+ * @param b
+ * @return
+ * 而这个函数能够返回三个值,第一个是NGX_OK,这个表示一个header解析完毕,
+ * 第二个是NGX_AGAIN,表示header没有解析完毕,也就是说buf只有一部分的数据。这个时候,下次进来的数据会继续没有完成的解析。
+ * 第三个是NGX_HTTP_PARSE_HEADER_DONE;,表示整个header已经解析完毕。
+ */
 ngx_int_t
 ngx_http_parse_header_line(ngx_http_request_t *r, ngx_buf_t *b)
 {
@@ -560,21 +614,26 @@ ngx_http_parse_header_line(ngx_http_request_t *r, ngx_buf_t *b)
         case sw_start:
             r->invalid_header = 0;
 
+            //通过第一个字符的值来判断下一个状态。
             switch (ch) {
+            //回车的话,说明没有header,因此设置状态为almost_done,然后期待最后的换行
             case CR:
                 r->header_end = p;
                 state = sw_header_almost_done;
                 break;
             case LF:
+                //如果换行则直接进入header_done,也就是整个header解析完毕
                 r->header_end = p;
                 goto header_done;
             default:
+                //默认进入sw_name状态,进行name解析
                 state = sw_name;
                 r->header_name_start = p;
-
+                //这里做了一个表,来进行大小写转换
                 c = lowcase[ch];
 
                 if (c) {
+                    //得到hash值,然后设置lowcase_header,后面我会解释这两个操作的原因。
                     hash = ngx_hash(0, c);
                     r->lowcase_header[0] = c;
                     i = 1;
@@ -589,9 +648,11 @@ ngx_http_parse_header_line(ngx_http_request_t *r, ngx_buf_t *b)
             break;
 
         /* header name */
+        // 然后是sw_name状态,这个状态进行解析name。
         case sw_name:
+            //小写。
             c = lowcase[ch];
-
+            //开始计算hash,然后保存header name
             if (c) {
                 hash = ngx_hash(hash, c);
                 r->lowcase_header[i++] = c;
@@ -599,13 +660,16 @@ ngx_http_parse_header_line(ngx_http_request_t *r, ngx_buf_t *b)
                 break;
             }
 
+            //如果是冒号,则进入value的处理,由于value有可能前面有空格,因此先处理这个。
             if (ch == ':') {
+                // 设置header name的end。
                 r->header_name_end = p;
                 state = sw_space_before_value;
                 break;
             }
-
+            //如果是回车换行则说明当前header解析已经结束,因此进入最终结束处理。
             if (ch == CR) {
+                //设置对应的值。
                 r->header_name_end = p;
                 r->header_start = p;
                 r->header_end = p;
@@ -614,6 +678,7 @@ ngx_http_parse_header_line(ngx_http_request_t *r, ngx_buf_t *b)
             }
 
             if (ch == LF) {
+                //设置对应的值,然后进入done
                 r->header_name_end = p;
                 r->header_start = p;
                 r->header_end = p;
@@ -635,8 +700,10 @@ ngx_http_parse_header_line(ngx_http_request_t *r, ngx_buf_t *b)
             break;
 
         /* space* before header value */
+        // sw_space_before_value状态就不分析了,这里它主要是解析value有空格的情况,并且保存value的指针。
         case sw_space_before_value:
             switch (ch) {
+            //跳过空格
             case ' ':
                 break;
             case CR:
@@ -649,6 +716,7 @@ ngx_http_parse_header_line(ngx_http_request_t *r, ngx_buf_t *b)
                 r->header_end = p;
                 goto done;
             default:
+                //设置header_start也就是value的开始指针。
                 r->header_start = p;
                 state = sw_value;
                 break;
@@ -656,12 +724,15 @@ ngx_http_parse_header_line(ngx_http_request_t *r, ngx_buf_t *b)
             break;
 
         /* header value */
+        // 我们主要来看sw_value状态,也就是解析value的状态。
         case sw_value:
             switch (ch) {
+                //如果是空格则进入sw_space_after_value处理
             case ' ':
                 r->header_end = p;
                 state = sw_space_after_value;
                 break;
+                    //会车换行的话,说明header解析完毕进入done或者almost_done.也就是最终会返回NGX_OK
             case CR:
                 r->header_end = p;
                 state = sw_almost_done;
@@ -700,6 +771,8 @@ ngx_http_parse_header_line(ngx_http_request_t *r, ngx_buf_t *b)
             break;
 
         /* end of header line */
+        //最后来看两个结束状态
+                //当前的header解析完毕
         case sw_almost_done:
             switch (ch) {
             case CR:
@@ -712,6 +785,7 @@ ngx_http_parse_header_line(ngx_http_request_t *r, ngx_buf_t *b)
             break;
 
         /* end of header */
+                //整个header解析完毕
         case sw_header_almost_done:
             switch (ch) {
             case LF:
@@ -721,7 +795,8 @@ ngx_http_parse_header_line(ngx_http_request_t *r, ngx_buf_t *b)
             }
         }
     }
-
+    // 首先是默认,也就是当遍历完buf后,header仍然没有结束的情况:
+    // 此时设置对应的hash值,以及保存当前状态,以及buf的位置
     b->pos = p;
     r->state = state;
     r->header_hash = hash;
@@ -729,6 +804,7 @@ ngx_http_parse_header_line(ngx_http_request_t *r, ngx_buf_t *b)
 
     return NGX_AGAIN;
 
+// 然后是done,也就是当前的header已经解析完毕,此时设置状态为start,以及buf位置为p+1.
 done:
 
     b->pos = p + 1;
@@ -738,6 +814,7 @@ done:
 
     return NGX_OK;
 
+//最后是header全部解析完毕,此时是得到了最后的回车换行,因此不需要hash值。
 header_done:
 
     b->pos = p + 1;

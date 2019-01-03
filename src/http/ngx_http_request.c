@@ -206,6 +206,11 @@ ngx_http_init_connection(ngx_connection_t *c)
 }
 
 
+/**
+ * init http request from ngx_event receiver
+ *
+ * @param rev
+ */
 static void
 ngx_http_init_request(ngx_event_t *rev)
 {
@@ -542,6 +547,40 @@ ngx_http_ssl_handshake_handler(ngx_connection_t *c)
 #endif
 
 
+/**
+ * 这里nginx将request的解析分为三个部分
+ * 第一个是request-line部分,第二个是complex ui部分,第三个是request header部分
+ *
+    一个整的request请求是：
+     <method> <request-URL> <version>
+     <headers>
+
+     <entity-body>
+
+  A Request Line specifies the Method Token (GET, PUT … ) followed by the
+  Request URI and then the HTTP Protocol that is being used
+
+    方法是下面的：
+    Method = "OPTIONS"
+    | "GET"
+    | "HEAD"
+    | "POST"
+    | "PUT"
+    | "DELETE"
+    | "TRACE"
+    | "CONNECT"
+    | extension-method
+    extension-method = token
+
+    然后是uri的格式：
+    <scheme>://<user>:<password>@<host>:<port>/<path>;<params>?<query>#<frag>
+
+    然后是version的格式：
+    HTTP/<major>.<minor>
+
+
+ * @param rev
+ */
 static void
 ngx_http_process_request_line(ngx_event_t *rev)
 {
@@ -551,7 +590,7 @@ ngx_http_process_request_line(ngx_event_t *rev)
     ngx_http_request_t  *r;
 
     c = rev->data;
-    r = c->data;
+    r = c->data; // 从event中拿到http_request
 
     ngx_log_debug0(NGX_LOG_DEBUG_HTTP, rev->log, 0,
                    "http process request line");
@@ -563,11 +602,12 @@ ngx_http_process_request_line(ngx_event_t *rev)
         return;
     }
 
-    rc = NGX_AGAIN;
+    rc = NGX_AGAIN; /* request code */
 
     for ( ;; ) {
 
         if (rc == NGX_AGAIN) {
+            //读取request头部
             n = ngx_http_read_request_header(r);
 
             if (n == NGX_AGAIN || n == NGX_ERROR) {
@@ -575,6 +615,7 @@ ngx_http_process_request_line(ngx_event_t *rev)
             }
         }
 
+        //开始解析request请求头部。
         rc = ngx_http_parse_request_line(r, r->header_in);
 
         if (rc == NGX_OK) {
@@ -600,6 +641,7 @@ ngx_http_process_request_line(ngx_event_t *rev)
                     return;
                 }
 
+                //解析complex uri
                 rc = ngx_http_parse_complex_uri(r);
 
                 if (rc == NGX_HTTP_PARSE_INVALID_REQUEST) {
@@ -698,7 +740,10 @@ ngx_http_process_request_line(ngx_event_t *rev)
 
             c->log->action = "reading client request headers";
 
+            // headers的格式我们知道一个name紧跟着一个冒号:,然后紧跟着一个可选的空格,然后是一个value,最后以一
+            // 个CRLF结束,而headers的结束是一个CRLF。
             rev->handler = ngx_http_process_request_headers;
+            //执行request header并且解析headers。
             ngx_http_process_request_headers(rev);
 
             return;
@@ -738,7 +783,10 @@ ngx_http_process_request_line(ngx_event_t *rev)
     }
 }
 
-
+/**
+ * 解析所有的headers
+ * @param rev
+ */
 static void
 ngx_http_process_request_headers(ngx_event_t *rev)
 {
@@ -1452,7 +1500,13 @@ ngx_http_request_handler(ngx_event_t *ev)
     }
 }
 
-
+/**
+ * 这里我们会发现有一个ngx_http_finalize_request函数,顾名思义,这个函数就是用来释放request的,比如
+request相关的内存池,比如需要返回的一些状态码,比如需要断开连接等等操作,这个函数我们会在后面的专
+ 门分析nginx关闭request(包括handler以及filter)时会详细分析。
+ * @param r
+ * @param rc
+ */
 void
 ngx_http_finalize_request(ngx_http_request_t *r, ngx_int_t rc)
 {

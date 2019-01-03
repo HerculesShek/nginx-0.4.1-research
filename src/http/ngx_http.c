@@ -70,6 +70,14 @@ ngx_module_t  ngx_http_module = {
 };
 
 
+/**
+ * 如此巨大的函数 咋想的？？？
+ *
+ * @param cf
+ * @param cmd
+ * @param conf
+ * @return
+ */
 static char *
 ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
@@ -94,6 +102,7 @@ ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     ngx_http_conf_in_addr_t     *in_addr;
     ngx_hash_keys_arrays_t       ha;
     ngx_http_server_name_t      *name;
+    //最终的handler数组
     ngx_http_phase_handler_t    *ph;
     ngx_http_virtual_names_t    *vn;
     ngx_http_core_srv_conf_t   **cscfp, *cscf;
@@ -375,6 +384,9 @@ ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     }
 
 
+    /**
+     * filter被初始化的地方。filter的初始化是在ngx_http_block函数中
+     */
     for (m = 0; ngx_modules[m]; m++) {
         if (ngx_modules[m]->type != NGX_HTTP_MODULE) {
             continue;
@@ -383,6 +395,7 @@ ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         module = ngx_modules[m]->ctx;
         mi = ngx_modules[m]->ctx_index;
 
+        //如果存在postconfiguratio则调用初始化。
         if (module->postconfiguration) {
             if (module->postconfiguration(cf) != NGX_OK) {
                 return NGX_CONF_ERROR;
@@ -404,49 +417,60 @@ ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     cmcf->phase_engine.server_rewrite_index = (ngx_uint_t) -1;
     find_config_index = 0;
+    //是否有使用rewrite以及access。
     use_rewrite = cmcf->phases[NGX_HTTP_REWRITE_PHASE].handlers.nelts ? 1 : 0;
     use_access = cmcf->phases[NGX_HTTP_ACCESS_PHASE].handlers.nelts ? 1 : 0;
-
+    //开始计算handler 数组的大小
     n = use_rewrite + use_access + 1; /* find config phase */
 
     for (i = 0; i < NGX_HTTP_LOG_PHASE; i++) {
         n += cmcf->phases[i].handlers.nelts;
     }
 
+    //数组分配内存
     ph = ngx_pcalloc(cf->pool,
                      n * sizeof(ngx_http_phase_handler_t) + sizeof(void *));
     if (ph == NULL) {
         return NGX_CONF_ERROR;
     }
 
+    //handler数组放到handlers里面。
     cmcf->phase_engine.handlers = ph;
+    //n表示下一个phase的索引。
     n = 0;
 
+    //开始遍历phase handler.这里是一个phase一个phase的遍历。
     for (i = 0; i < NGX_HTTP_LOG_PHASE; i++) {
+        //取出对应的handler处理函数
         h = cmcf->phases[i].handlers.elts;
-
+        //根据不同的phase来处理
         switch (i) {
-
+        //server重写phase(也就是内部重定向phase)
         case NGX_HTTP_SERVER_REWRITE_PHASE:
+            //如果有定义重写规则则设置重写handler的索引n.
             if (cmcf->phase_engine.server_rewrite_index == (ngx_uint_t) -1) {
                 cmcf->phase_engine.server_rewrite_index = n;
             }
+            //赋值checker
             checker = ngx_http_core_generic_phase;
 
             break;
-
+        //config phase只有一个.这里设置 find_config_index,是因为当我们rewrite之后的url就必须
+        // 重新挂载location的一些结构,因此就需要再次进入这个phase
         case NGX_HTTP_FIND_CONFIG_PHASE:
             find_config_index = n;
-
+                //自己的checker
             ph->checker = ngx_http_core_find_config_phase;
             n++;
             ph++;
 
             continue;
-
+                //rewrite phase
         case NGX_HTTP_POST_REWRITE_PHASE:
+            //如果有使用rewrite则给它的checker赋值
             if (use_rewrite) {
                 ph->checker = ngx_http_core_post_rewrite_phase;
+                //注意它的next就是find_config phase,也就是说需要重新挂载location的数据。
                 ph->next = find_config_index;
                 n++;
                 ph++;
@@ -473,18 +497,32 @@ ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
             break;
 
         default:
+            //共用的checker
             checker = ngx_http_core_generic_phase;
         }
-
+        //这里n刚好就是下一个phase的其实索引
         n += cmcf->phases[i].handlers.nelts;
-
+        //开始遍历当前的phase的handler。
         for (j = cmcf->phases[i].handlers.nelts - 1; j >=0; j--) {
             ph->checker = checker;
+            //每个的handler就是注册的时候的回掉函数
             ph->handler = h[j];
+            //next为下一个phase的索引
             ph->next = n;
+            //下一个handler
             ph++;
         }
     }
+    /**
+     * 这里需要注意就是只有下面这几个phase会有多个handler,剩余的都是只有一个handler的。
+        NGX_HTTP_POST_READ_PHASE
+        NGX_HTTP_SERVER_REWRITE_PHASE,
+        NGX_HTTP_REWRITE_PHASE,
+        NGX_HTTP_PREACCESS_PHASE,
+        NGX_HTTP_ACCESS_PHASE,
+        NGX_HTTP_CONTENT_PHASE,
+        NGX_HTTP_LOG_PHASE
+     */
 
 
     /*

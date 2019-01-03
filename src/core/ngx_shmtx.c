@@ -11,6 +11,7 @@
 #if (NGX_HAVE_ATOMIC_OPS)
 
 
+// 如果支持原子操作的话,非常简单,就是将共享内存的地址赋值给lock
 ngx_int_t
 ngx_shmtx_create(ngx_shmtx_t *mtx, void *addr, u_char *name, ngx_log_t *log)
 {

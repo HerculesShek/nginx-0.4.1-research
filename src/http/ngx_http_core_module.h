@@ -45,22 +45,35 @@ typedef struct {
 } ngx_http_listen_t;
 
 
+/**
+ * nginx中的处理一个http的请求分为了8个phase,分别是下面几个阶段
+
+    这里要注意的就是这几个phase的执行是严格按照顺序的,也就是NGX_HTTP_POST_READ_PHASE是第一个,
+    而LOG_PHASE是最后一个。只有一个特殊那就是FIND_CONFIG_PHASE,这个的话,有可能会在后面的
+    rewrite phase再来调用这个phase。
+ */
 typedef enum {
+    //读取请求phase
     NGX_HTTP_POST_READ_PHASE = 0,
-
+    //接下来就是开始处理
+    //这个阶段主要是处理全局的(server block)的rewrite。
     NGX_HTTP_SERVER_REWRITE_PHASE,
-
+    //这个阶段主要是通过uri来查找对应的location。然后将uri和location的数据关联起来
     NGX_HTTP_FIND_CONFIG_PHASE,
+    //这个主要处理location的rewrite。
     NGX_HTTP_REWRITE_PHASE,
+    // rewrite,这个主要是进行一些校验以及收尾工作,以便于交给后面的模块。
     NGX_HTTP_POST_REWRITE_PHASE,
-
+    //比如流控这种类型的access就放在这个phase,也就是说它主要是进行一些比较粗粒度的access。
     NGX_HTTP_PREACCESS_PHASE,
-
+    //这个比如存取控制,权限验证就放在这个phase,一般来说处理动作是交给下面的模块做的.这个主要是做一些细粒度的access。
     NGX_HTTP_ACCESS_PHASE,
+    //一般来说当上面的access模块得到access_code之后就会由这个模块根据access_code来进行操作
     NGX_HTTP_POST_ACCESS_PHASE,
-
+    //try_file模块,也就是对应配置文件中的try_files指令 todo 此版本还未加入
+    //内容处理模块,我们一般的handle都是处于这个模块
     NGX_HTTP_CONTENT_PHASE,
-
+    //log模块
     NGX_HTTP_LOG_PHASE
 } ngx_http_phases;
 
@@ -68,22 +81,36 @@ typedef struct ngx_http_phase_handler_s  ngx_http_phase_handler_t;
 
 typedef ngx_int_t (*ngx_http_phase_handler_pt)(ngx_http_request_t *r,
     ngx_http_phase_handler_t *ph);
-
+/**
+ * 该结构体是保存在ngx_http_core_main_conf_t的
+ * handler链会被转换为ngx_http_phase_handler_s
+ * 然后保存在ngx_http_core_main_conf_t的phase_engine中。而后面对handler
+ * 的调用处理都是使用ngx_http_phase_handler_s。
+ * 这个结构体是每个handler都会有一个的,也就是说所有的phase handler最终都会链接到
+ * 一个大的数组中,这个大数组就是ngx_http_phase_engine_t的handlers域。
+ */
 struct ngx_http_phase_handler_s {
+    // checker 所有处于相同phase的handler的check都是相同的,每个phase的handler的调用都是在check中的,
+    // 也就是check进行一些校验,结果判断等等操作。
     ngx_http_phase_handler_pt  checker;
+    // handler就是对应的handler处理函数
     ngx_http_handler_pt        handler;
+    // next 表示了下一个要执行的handler(也就是ngx_http_phase_handler_s)的位置,由于是数组,
+    // 所以这个也就表示数组索引。而这个默认就是下一个将要执行的phase
     ngx_uint_t                 next;
 };
 
 
 typedef struct {
+    //所有的hanler都会在这个数组中.
     ngx_http_phase_handler_t  *handlers;
     ngx_uint_t                 server_rewrite_index;
 } ngx_http_phase_engine_t;
 
 
 typedef struct {
-    ngx_array_t                handlers;
+    //每个phase都会有一个handler数组。
+    ngx_array_t                handlers; // 每个handler数组的元素是 ngx_http_handler_pt
 } ngx_http_phase_t;
 
 
@@ -106,7 +133,7 @@ typedef struct {
 
     ngx_hash_keys_arrays_t    *variables_keys;
 
-    ngx_http_phase_t           phases[NGX_HTTP_LOG_PHASE + 1];
+    ngx_http_phase_t           phases[NGX_HTTP_LOG_PHASE + 1]; // 对应所有http请求的时期
 } ngx_http_core_main_conf_t;
 
 

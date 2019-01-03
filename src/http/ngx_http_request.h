@@ -109,8 +109,9 @@
 #define NGX_HTTP_INSUFFICIENT_STORAGE      507
 
 
-#define NGX_HTTP_LOWLEVEL_BUFFERED         0x000000f0
-#define NGX_HTTP_WRITE_BUFFERED            0x00000010
+#define NGX_HTTP_LOWLEVEL_BUFFERED         0x000000f0 //这个并没有用到
+#define NGX_HTTP_WRITE_BUFFERED            0x00000010 //主要是这个,这个表示在最终的write filter中被buffered
+//下面几个filter中被buffered
 #define NGX_HTTP_GZIP_BUFFERED             0x00000020
 #define NGX_HTTP_SSI_BUFFERED              0x00000100
 #define NGX_HTTP_COPY_BUFFERED             0x00000200
@@ -342,7 +343,7 @@ struct ngx_http_request_s {
     ngx_str_t                         method_name;
     ngx_str_t                         http_protocol;
 
-    ngx_chain_t                      *out;
+    ngx_chain_t                      *out; // 保存上次没发完的buf
     ngx_http_request_t               *main;
     ngx_http_request_t               *parent;
     ngx_http_postponed_request_t     *postponed;
@@ -469,12 +470,18 @@ struct ngx_http_request_s {
     u_char                           *host_end;
     u_char                           *port_start;
     u_char                           *port_end;
+    // header_name_start 这个表示header_name的起始位置。
+    //header_name_end 这个表示当前header_name的结束位置
+    //header_start 这个是value的起始位置
+    //header_end 这个是value的结束位置
     u_char                           *header_name_start;
     u_char                           *header_name_end;
     u_char                           *header_start;
     u_char                           *header_end;
 
+    // header_hash 这个是header name的hash值。这个主要用来保存name和value到hash中
     ngx_uint_t                        header_hash;
+    // lowcase_index 这个是索引值。
     ngx_uint_t                        lowcase_index;
     u_char                            lowcase_header[NGX_HTTP_LC_HEADER_LEN];
 };

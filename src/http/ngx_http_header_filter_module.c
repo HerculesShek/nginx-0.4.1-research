@@ -146,7 +146,14 @@ ngx_http_header_out_t  ngx_http_headers_out[] = {
     { ngx_null_string, 0 }
 };
 
-
+/**
+ * 这个函数主要就是处理http的头域,然后设置对应的reponse值,最终输出。
+ * 这里header filter比较简单,这里没有什么复杂的东西,主要就是设置一些status。然后拷贝,
+ * 最后通过ngx_http_write_filter进行发送。
+ *
+ * @param r
+ * @return
+ */
 static ngx_int_t
 ngx_http_header_filter(ngx_http_request_t *r)
 {

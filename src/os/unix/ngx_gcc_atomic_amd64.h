@@ -29,6 +29,17 @@
  * The "cc" means that flags were changed.
  */
 
+/**
+ * 这是一个原子操作 因为在其中要进行比较和赋值两个操作 如果不是原子操作的话 有可能在
+ * 比较之后被其他进程所抢占，此时再赋值就有问题了，因此必须是一个原子操作
+ *
+ * 如果lock的值是old的话,就把lock的值修改为set,否则返回失败。
+ *
+ * @param lock
+ * @param old
+ * @param set
+ * @return
+ */
 static ngx_inline ngx_atomic_uint_t
 ngx_atomic_cmp_set(ngx_atomic_t *lock, ngx_atomic_uint_t old,
     ngx_atomic_uint_t set)

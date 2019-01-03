@@ -25,6 +25,13 @@ static ngx_int_t ngx_output_chain_copy_buf(ngx_buf_t *dst, ngx_buf_t *src,
     ngx_uint_t sendfile);
 
 
+/**
+ * 拷贝in chain的数据到buf域中
+ *
+ * @param ctx
+ * @param in
+ * @return
+ */
 ngx_int_t
 ngx_output_chain(ngx_output_chain_ctx_t *ctx, ngx_chain_t *in)
 {
@@ -42,10 +49,11 @@ ngx_output_chain(ngx_output_chain_ctx_t *ctx, ngx_chain_t *in)
          * that does not require the copy
          */
 
-        if (in == NULL) {
+        if (in == NULL) { // the incoming chain is empty too
             return ctx->output_filter(ctx->filter_ctx, in);
         }
 
+        // the incoming chain has the single buf
         if (in->next == NULL
 #if (NGX_SENDFILE_LIMIT)
             && !(in->buf->in_file && in->buf->file_last > NGX_SENDFILE_LIMIT)
@@ -57,7 +65,7 @@ ngx_output_chain(ngx_output_chain_ctx_t *ctx, ngx_chain_t *in)
     }
 
     /* add the incoming buf to the chain ctx->in */
-
+    ///拷贝in 到ctx的in chain中。
     if (in) {
         if (ngx_output_chain_add_copy(ctx->pool, &ctx->in, in) == NGX_ERROR) {
             return NGX_ERROR;
@@ -68,15 +76,16 @@ ngx_output_chain(ngx_output_chain_ctx_t *ctx, ngx_chain_t *in)
     last_out = &out;
     last = NGX_NONE;
 
+    ///开始循环处理ctx-in chain.这里有两层循环。
     for ( ;; ) {
-
+        ///开始遍历in
         while (ctx->in) {
 
             /*
              * cycle while there are the ctx->in bufs
              * or there are the free output bufs to copy in
              */
-
+            ///计算当前in的buf长度。这个长度也就是还没处理的数据长度。
             bsize = ngx_buf_size(ctx->in->buf);
 
             if (bsize == 0 && !ngx_buf_special(ctx->in->buf)) {
@@ -115,11 +124,13 @@ ngx_output_chain(ngx_output_chain_ctx_t *ctx, ngx_chain_t *in)
                 continue;
             }
 
+            ///如果buf为空,则我们需要给buf分配空间。
+            ///这里主要是处理file buf,如果是file buf则会create一个buf链接到ctx
             if (ctx->buf == NULL) {
 
                 /* get the free buf */
 
-                if (ctx->free) {
+                if (ctx->free) {///如果free不为空,则我们从free chain中取得buf。
                     cl = ctx->free;
                     ctx->buf = cl->buf;
                     ctx->free = cl->next;
@@ -130,6 +141,7 @@ ngx_output_chain(ngx_output_chain_ctx_t *ctx, ngx_chain_t *in)
                     break;
 
                 } else {
+                    ///否则我们要重新create一个buf,然后链接到ctx,这里主要buf的大小和in chain的没有处理的数据一样大。
 
                     size = ctx->bufs.size;
                     recycled = 1;
@@ -171,7 +183,7 @@ ngx_output_chain(ngx_output_chain_ctx_t *ctx, ngx_chain_t *in)
                     ctx->allocated++;
                 }
             }
-
+            ///从in chain拷贝数据到buf,并更新相关域。
             rc = ngx_output_chain_copy_buf(ctx->buf, ctx->in->buf,
                                            ctx->sendfile);
 
@@ -189,15 +201,18 @@ ngx_output_chain(ngx_output_chain_ctx_t *ctx, ngx_chain_t *in)
 
             /* delete the completed buf from the ctx->in chain */
 
+            ///如果size为0,说明in chain中的第一个chain的数据已经被拷贝完了,此时删除这个chain。
             if (ngx_buf_size(ctx->in->buf) == 0) {
                 ctx->in = ctx->in->next;
             }
 
+            ///重新分配一个 chain
             cl = ngx_alloc_chain_link(ctx->pool);
             if (cl == NULL) {
                 return NGX_ERROR;
             }
 
+            ///链接buf到cl
             cl->buf = ctx->buf;
             cl->next = NULL;
             *last_out = cl;
@@ -214,12 +229,13 @@ ngx_output_chain(ngx_output_chain_ctx_t *ctx, ngx_chain_t *in)
             return last;
         }
 
+        ///调用回调函数
         last = ctx->output_filter(ctx->filter_ctx, out);
 
         if (last == NGX_ERROR || last == NGX_DONE) {
             return last;
         }
-
+        ///update 相关的chain,主要是将刚才copy完的buf 加入到busy chain,然后从busy chain中取出buf放到free chain中。
         ngx_chain_update_chains(&ctx->free, &ctx->busy, &out, ctx->tag);
         last_out = &out;
     }
@@ -434,6 +450,7 @@ ngx_chain_writer(void *data, ngx_chain_t *in)
     off_t         size;
     ngx_chain_t  *cl;
 
+    ///这里将in中的也就是新加入的chain ,全部复制到last中。也就是它保存了最后的数据。
     for (size = 0; in; in = in->next) {
 
 #if 1
@@ -441,7 +458,7 @@ ngx_chain_writer(void *data, ngx_chain_t *in)
             ngx_debug_point();
         }
 #endif
-
+        ///计算大小
         size += ngx_buf_size(in->buf);
 
         ngx_log_debug1(NGX_LOG_DEBUG_CORE, ctx->connection->log, 0,
@@ -452,6 +469,7 @@ ngx_chain_writer(void *data, ngx_chain_t *in)
             return NGX_ERROR;
         }
 
+        ///加入last
         cl->buf = in->buf;
         cl->next = NULL;
         *ctx->last = cl;
@@ -461,6 +479,7 @@ ngx_chain_writer(void *data, ngx_chain_t *in)
     ngx_log_debug1(NGX_LOG_DEBUG_CORE, ctx->connection->log, 0,
                    "chain writer in: %p", ctx->out);
 
+    ///遍历out chain
     for (cl = ctx->out; cl; cl = cl->next) {
 
 #if 1
@@ -469,7 +488,7 @@ ngx_chain_writer(void *data, ngx_chain_t *in)
         }
 
 #endif
-
+        ///计算所需要输出的大小
         size += ngx_buf_size(cl->buf);
     }
 
@@ -477,6 +496,7 @@ ngx_chain_writer(void *data, ngx_chain_t *in)
         return NGX_OK;
     }
 
+    ///调用send_chain(一般是writev)来输出out中的数据。
     ctx->out = ctx->connection->send_chain(ctx->connection, ctx->out,
                                            ctx->limit);
 

@@ -532,6 +532,12 @@ ngx_http_handler(ngx_http_request_t *r)
 }
 
 
+/**
+ * phase的启动是在ngx_http_core_run_phases这个函数中的,这个函数会遍历所有phase然后调用他们的
+ * checker来进行处理,也就是说错误,返回代码的控制什么的都是由各自的checker做的。而所有的checker的
+ * 返回值都是一样的。
+ * @param r
+ */
 void
 ngx_http_core_run_phases(ngx_http_request_t *r)
 {
@@ -544,16 +550,46 @@ ngx_http_core_run_phases(ngx_http_request_t *r)
     ph = cmcf->phase_engine.handlers;
 
     while (ph[r->phase_handler].checker) {
-
+        //调用checker
         rc = ph[r->phase_handler].checker(r, &ph[r->phase_handler]);
-
+        //如果有一个checker返回OK,则后面的phase就不会处理的。
         if (rc == NGX_OK) {
             return;
         }
     }
 }
 
+/**
+ * 首先我们要弄明白一个事情,那就是在nginx中,一般来说,都是在NGX_HTTP_CONTENT_PHASE中调用
+outputfilter的,也就是说filter是在handler中调用的,这样看来只能有一个handler能够执行outputfiler.所以
+说在写nginx的handler模块的话,要注意不同的phase的返回值代表的不同意思。
 
+ 而当ngx_http_core_run_phases返回,也就是某个phase的checker返回了NGX_OK的话,那么也就代表当前
+的请求已经处理结束。
+
+ 按照顺序来。
+
+首先是ngx_http_core_generic_phase,他主要是处理下面几个phase:
+
+引用
+post read, server rewrite, rewrite, and pre-access phases
+
+ 在这几个phase的checker中,它将所要执行的handler的返回值分为4种类型。
+1 NGX_OK 此时返回NGX_AGAIN,这里我们知道如果checker返回ok的话,整个handler的处理就会直接返
+回,也就是这次处理结束。并且这里phase_handler被赋值为ph->next,也就是下一个phase的索引。也就是说
+下次将会调用它的下一个phase的checker。
+2 NGX_DECLINED 此时也返回NGX_AGAIN,而这个和上面有所不同,那就是phase_handler的赋值,这里这个
+值只是简单的++,也就是说会紧接着处理当前phase的下一个phase,只有当前的phase的handelr处理完毕了,
+才可能会处理下一个phase的handler
+3 NGX_AGAIN 或者NGX_DONE,这个的话直接返回OK,也就是会结束handler的处理。
+
+4 剩余的情况,主要是处理NGX_ERROR,以及NGX_HTTP_(也就是返回一些http的状态码)的处理。
+
+
+ * @param r
+ * @param ph
+ * @return
+ */
 ngx_int_t
 ngx_http_core_generic_phase(ngx_http_request_t *r, ngx_http_phase_handler_t *ph)
 {
@@ -566,25 +602,27 @@ ngx_http_core_generic_phase(ngx_http_request_t *r, ngx_http_phase_handler_t *ph)
 
     ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                    "generic phase: %ui", r->phase_handler);
-
+    //调用handler
     rc = ph->handler(r);
-
+    //处理NGX_OK
     if (rc == NGX_OK) {
+        //下一个phase的索引
         r->phase_handler = ph->next;
         return NGX_AGAIN;
     }
-
+    //处理NGX_DECLINED
     if (rc == NGX_DECLINED) {
+        //处理本phase的下一个handler
         r->phase_handler++;
         return NGX_AGAIN;
     }
-
+    //直接返回OK
     if (rc == NGX_AGAIN || rc == NGX_DONE) {
         return NGX_OK;
     }
 
     /* rc == NGX_ERROR || rc == NGX_HTTP_...  */
-
+    //剩余的情况。
     ngx_http_finalize_request(r, rc);
 
     return NGX_OK;
@@ -1122,7 +1160,12 @@ ngx_http_set_exten(ngx_http_request_t *r)
     return NGX_OK;
 }
 
-
+/**
+ * 先来看head_filter的调用:
+ *
+ * @param r
+ * @return
+ */
 ngx_int_t
 ngx_http_send_header(ngx_http_request_t *r)
 {
@@ -1134,7 +1177,13 @@ ngx_http_send_header(ngx_http_request_t *r)
     return ngx_http_top_header_filter(r);
 }
 
-
+/**
+ * body_filter的调用 和header_filter类似
+ *
+ * @param r
+ * @param in
+ * @return
+ */
 ngx_int_t
 ngx_http_output_filter(ngx_http_request_t *r, ngx_chain_t *in)
 {
@@ -1143,6 +1192,7 @@ ngx_http_output_filter(ngx_http_request_t *r, ngx_chain_t *in)
     ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                    "http output filter \"%V?%V\"", &r->uri, &r->args);
 
+    //启动body filter
     rc = ngx_http_top_body_filter(r, in);
 
     if (rc == NGX_ERROR) {

@@ -7,18 +7,24 @@
 #include <ngx_config.h>
 #include <ngx_core.h>
 
-
+/**
+ * 从pool中创建一个buf
+ *
+ * @param pool 从这个pool中申请内存
+ * @param size 要申请的buf的大小
+ * @return
+ */
 ngx_buf_t *
 ngx_create_temp_buf(ngx_pool_t *pool, size_t size)
 {
     ngx_buf_t *b;
 
-    b = ngx_calloc_buf(pool);
+    b = ngx_calloc_buf(pool); // 构造buf的逻辑结构(meta信息)
     if (b == NULL) {
         return NULL;
     }
 
-    b->start = ngx_palloc(pool, size);
+    b->start = ngx_palloc(pool, size);  // 构造buf的物理结构(实际内存)
     if (b->start == NULL) {
         return NULL;
     }
@@ -48,13 +54,15 @@ ngx_alloc_chain_link(ngx_pool_t *pool)
 {
     ngx_chain_t  *cl;
 
-    cl = pool->chain;
+    cl = pool->chain; ///取得pool的老的chain
 
+    ///如果chain已经存在,就从pool的chain中删除第一个节点,然后返回老的chain
     if (cl) {
         pool->chain = cl->next;
         return cl;
     }
 
+    ///否则从pool中新建一个chain。这里注意新建的这个chain是链接到pool的chain上的 因为前面有对cl的声明
     cl = ngx_palloc(pool, sizeof(ngx_chain_t));
     if (cl == NULL) {
         return NULL;

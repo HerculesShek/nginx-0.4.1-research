@@ -48,9 +48,15 @@ ngx_atomic_t         *ngx_connection_counter = &connection_counter;
 
 ngx_atomic_t         *ngx_accept_mutex_ptr;
 ngx_shmtx_t           ngx_accept_mutex;
+// 如果有ngx_use_accept_mutex这个变量
+// 说明nginx有必要使用accept互斥体,这个变量的初始化在ngx_event_process_init中。
 ngx_uint_t            ngx_use_accept_mutex;
+//这里还有两个变量,一个是ngx_accept_mutex_held,一个是ngx_accept_mutex_delay,其中前一个表示当
+//前是否已经持有锁,后一个表示,当获得锁失败后,再次去请求锁的间隔时间,这个时间可以看到可以在配置
+//文件中设置的。
 ngx_uint_t            ngx_accept_mutex_held;
 ngx_msec_t            ngx_accept_mutex_delay;
+//这里还有一个变量是ngx_accept_disabled,这个变量是一个阈值,如果大于0,说明当前的进程处理的连接过多。
 ngx_int_t             ngx_accept_disabled;
 ngx_file_t            ngx_accept_mutex_lock_file;
 
@@ -193,6 +199,10 @@ ngx_module_t  ngx_event_core_module = {
 };
 
 
+/**
+ *
+ * @param cycle
+ */
 void
 ngx_process_events_and_timers(ngx_cycle_t *cycle)
 {
@@ -216,19 +226,24 @@ ngx_process_events_and_timers(ngx_cycle_t *cycle)
 #endif
     }
 
+    //如果有使用mutex,则才会进行处理。
     if (ngx_use_accept_mutex) {
+        //如果大于0,则跳过下面的锁的处理,并减一。
         if (ngx_accept_disabled > 0) {
             ngx_accept_disabled--;
 
         } else {
+            //试着获得锁,如果出错则返回。
             if (ngx_trylock_accept_mutex(cycle) == NGX_ERROR) {
                 return;
             }
 
+            //如果ngx_accept_mutex_held为1,则说明已经获得锁,此时设置flag,这个flag后面会解释。
             if (ngx_accept_mutex_held) {
                 flags |= NGX_POST_EVENTS;
 
             } else {
+                //否则,设置timer,也就是定时器。接下来会解释这段。
                 if (timer == NGX_TIMER_INFINITE
                     || timer > ngx_accept_mutex_delay)
                 {
@@ -247,9 +262,16 @@ ngx_process_events_and_timers(ngx_cycle_t *cycle)
     ngx_log_debug1(NGX_LOG_DEBUG_EVENT, cycle->log, 0,
                    "timer delta: %M", delta);
 
+    //如果ngx_posted_accept_events不为NULL,则说明有accept event需要nginx处理。
     if (ngx_posted_accept_events) {
         ngx_event_process_posted(cycle, &ngx_posted_accept_events);
     }
+
+    // 而如果没有设置NGX_POST_EVENTS标记的话,nginx会立即accept或者读取句柄。
+    //
+    //然后是定时器,这里如果nginx没有获得锁,并不会马上再去获得锁,而是设置定时器,然后在epoll休眠(如果
+    //没有其他的东西唤醒).此时如果有连接到达,当前休眠进程会被提前唤醒,然后立即accept。否则,休眠
+    //ngx_accept_mutex_delay时间,然后继续try lock.
 
     if (ngx_accept_mutex_held) {
         ngx_shmtx_unlock(&ngx_accept_mutex);
@@ -486,7 +508,9 @@ ngx_event_module_init(ngx_cycle_t *cycle)
 
 
     /* cl should be equal or bigger than cache line size */
-
+    // 下面这段代码是设置共享区域大小,这里cl的大小最好是要大于或者等于cache line。
+    // 通过代码可以看到这里将会有2个区域被所有进程共享,其中我们的锁将会用到的是第一个。
+    // 新版的nginx有三个区域 还有个 cl; /* ngx_temp_number */
     cl = 128;
 
     size = cl            /* ngx_accept_mutex */
@@ -506,7 +530,7 @@ ngx_event_module_init(ngx_cycle_t *cycle)
     shm.size = size;
     shm.log = cycle->log;
 
-    // 父子进程间共享内存
+    // 父子进程间共享内存 使用mmap或者shm之类的。
     if (ngx_shm_alloc(&shm) != NGX_OK) {
         return NGX_ERROR;
     }
@@ -515,6 +539,7 @@ ngx_event_module_init(ngx_cycle_t *cycle)
 
     ngx_accept_mutex_ptr = (ngx_atomic_t *) shared;
 
+    //初始化互斥体。
     if (ngx_shmtx_create(&ngx_accept_mutex, shared, ccf->lock_file.data,
                          cycle->log)
         != NGX_OK)
@@ -583,6 +608,7 @@ ngx_event_process_init(ngx_cycle_t *cycle)
     ccf = (ngx_core_conf_t *) ngx_get_conf(cycle->conf_ctx, ngx_core_module);
     ecf = ngx_event_get_conf(cycle->conf_ctx, ngx_event_core_module);
 
+    //如果使用了master worker,并且worker个数大于1,并且配置文件里面有设置使用accept_mutex.的话,设置ngx_use_accept_mutex
     if (ccf->worker_processes > 1 && ecf->accept_mutex) {
         ngx_use_accept_mutex = 1;
         ngx_accept_mutex_held = 0;
