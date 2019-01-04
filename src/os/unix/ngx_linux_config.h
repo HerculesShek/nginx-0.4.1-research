@@ -51,6 +51,14 @@
 #include <crypt.h>
 
 
+/* IOV_MAX */
+#ifndef IOV_MAX
+#ifdef UIO_MAXIOV
+#define IOV_MAX   UIO_MAXIOV
+#endif
+#define IOV_MAX   16
+#endif
+
 #include <ngx_auto_config.h>
 
 
