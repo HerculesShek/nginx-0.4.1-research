@@ -176,7 +176,7 @@ esac
 #CFLAGS="$CFLAGS -Werror"
 
 # debug
-CFLAGS="$CFLAGS -g"
+CFLAGS="$CFLAGS -g -g3 -gdwarf-2"
 
 # DragonFly's gcc3 generates DWARF
 #CFLAGS="$CFLAGS -g -gstabs"

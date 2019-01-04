@@ -12,8 +12,8 @@ static ngx_int_t ngx_linux_procfs(char *name, char *buf, size_t len,
     ngx_log_t *log);
 
 
-char  ngx_linux_kern_ostype[50];
-char  ngx_linux_kern_osrelease[20];
+char  ngx_linux_kern_ostype[50]; // "Linux"
+char  ngx_linux_kern_osrelease[20]; // "3.10.0-957.1.3.el7.x"
 
 int   ngx_linux_rtsig_max;
 
@@ -31,7 +31,13 @@ static ngx_os_io_t ngx_linux_io = {
 #endif
 };
 
-
+/**
+ * 做一些特殊处理
+ * 主要是实时信号
+ *
+ * @param log
+ * @return
+ */
 ngx_int_t
 ngx_os_specific_init(ngx_log_t *log)
 {
@@ -56,9 +62,9 @@ ngx_os_specific_init(ngx_log_t *log)
     }
 
 
-    name[0] = CTL_KERN;
-    name[1] = KERN_RTSIGMAX;
-    len = sizeof(ngx_linux_rtsig_max);
+    name[0] = CTL_KERN;  //1
+    name[1] = KERN_RTSIGMAX; // 33
+    len = sizeof(ngx_linux_rtsig_max); // 4
 
     if (sysctl(name, 2, &ngx_linux_rtsig_max, &len, NULL, 0) == -1) {
         err = ngx_errno;

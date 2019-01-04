@@ -17,7 +17,9 @@ ngx_uint_t  ngx_tcp_nodelay_and_tcp_nopush;
 
 struct rlimit  rlmt;
 
-
+/**
+ * 负责手法信息的函数指针
+ */
 ngx_os_io_t ngx_os_io = {
     ngx_unix_recv,
     ngx_readv_chain,
@@ -39,6 +41,7 @@ ngx_os_io_t ngx_os_io = {
 ngx_int_t
 ngx_os_init(ngx_log_t *log)
 {
+    // NGX_HAVE_OS_SPECIFIC_INIT is 1
 #if (NGX_HAVE_OS_SPECIFIC_INIT)
     if (ngx_os_specific_init(log) != NGX_OK) {
         return NGX_ERROR;
