@@ -55,8 +55,9 @@
 #ifndef IOV_MAX
 #ifdef UIO_MAXIOV
 #define IOV_MAX   UIO_MAXIOV
-#endif
+#else
 #define IOV_MAX   16
+#endif
 #endif
 
 #include <ngx_auto_config.h>
