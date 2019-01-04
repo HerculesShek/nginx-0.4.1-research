@@ -51,6 +51,8 @@ ngx_time_init(void)
     ngx_cached_time = &cached_time[0];
 
 #if !(NGX_WIN32)
+    //time zone set
+    // tzset()函数使用环境变量TZ的当前设置把值赋给三个全局变量:daylight,timezone和tzname。
     tzset();
 #endif
 
@@ -84,7 +86,7 @@ ngx_time_update(time_t sec, ngx_uint_t msec)
     }
 
     if (sec == 0) {
-        /* 获取当前的时间  1,000,000 usec = 1s */
+        /* 获取当前的时刻 秒和纳秒  1,000,000 usec = 1s */
         /* now: tv.tv_sec is 1545217892, and tv.tv_usec is 114575 */
         ngx_gettimeofday(&tv);
 
@@ -92,6 +94,9 @@ ngx_time_update(time_t sec, ngx_uint_t msec)
         msec = tv.tv_usec / 1000;
     }
 
+    /**
+     * 设置当前时间的毫秒表示方法
+     */
     ngx_current_msec = (ngx_msec_t) sec * 1000 + msec;
 
     tp = &cached_time[slot];

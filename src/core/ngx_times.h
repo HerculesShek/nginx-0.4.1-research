@@ -11,7 +11,9 @@
 #include <ngx_config.h>
 #include <ngx_core.h>
 
-
+/**
+ * nginx的时间类型
+ */
 typedef struct {
     time_t      sec;  // long
     ngx_uint_t  msec;
