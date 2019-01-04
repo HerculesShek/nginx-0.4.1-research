@@ -206,6 +206,13 @@ main(int argc, char *const *argv)
 
     ngx_pid = ngx_getpid();
 
+    /**
+    初始化一个日志 日志级别是6 notice 文件句柄2是标准错误输出
+    (gdb) p ngx_log
+    $8 = {log_level = 6, file = 0x67a780 <ngx_stderr>, connection = 0, handler = 0x0, data = 0x0, action = 0x0}
+    (gdb) p *ngx_log.file
+    $9 = {fd = 2, name = {len = 0, data = 0x0}, buffer = 0x0, pos = 0x0, last = 0x0}
+     */
     log = ngx_log_init();
     if (log == NULL) {
         return 1;
@@ -235,6 +242,8 @@ main(int argc, char *const *argv)
         return 1;
     }
 
+    // 到这里
+    // init_cycle中只有 log pool conf_file 被赋值
     if (ngx_show_version) {
         ngx_write_fd(ngx_stderr_fileno, "nginx version: " NGINX_VER CRLF,
                      sizeof("nginx version: " NGINX_VER CRLF) - 1);
@@ -483,7 +492,7 @@ ngx_getopt(ngx_cycle_t *cycle, int argc, char *const *argv)
     ngx_int_t  i;
 
     for (i = 1; i < argc; i++) {
-        if (argv[i][0] != '-') {
+        if (argv[i][0] != '-') { // 可以看出 该版本的命令行参数很简单 只支持-c -v -t
             ngx_log_error(NGX_LOG_EMERG, cycle->log, 0,
                           "invalid option: \"%s\"", argv[i]);
             return NGX_ERROR;
@@ -530,7 +539,14 @@ ngx_getopt(ngx_cycle_t *cycle, int argc, char *const *argv)
     return NGX_OK;
 }
 
-
+/**
+ * 保存参数
+ *
+ * @param cycle
+ * @param argc
+ * @param argv
+ * @return
+ */
 static ngx_int_t
 ngx_save_argv(ngx_cycle_t *cycle, int argc, char *const *argv)
 {

@@ -26,7 +26,16 @@ ngx_os_io_t ngx_os_io = {
     0
 };
 
-
+/**
+ * 操作系统相关变量初始化
+ * 设置进程名字
+ * 设置页大小 4096
+ * 设置cpu缓存位宽 64
+ * 设置cpu核数
+ *
+ * @param log
+ * @return
+ */
 ngx_int_t
 ngx_os_init(ngx_log_t *log)
 {
@@ -41,18 +50,21 @@ ngx_os_init(ngx_log_t *log)
     ngx_pagesize = getpagesize();
     ngx_cacheline_size = NGX_CPU_CACHE_LINE;
 
+    // todo will 貌似没有真正设置正确cpu核数
     if (ngx_ncpu == 0) {
         ngx_ncpu = 1;
     }
 
     ngx_cpuinfo();
 
+    // 获取系统限制的可以打开的最大文件数量 centos7中是4096
     if (getrlimit(RLIMIT_NOFILE, &rlmt) == -1) {
         ngx_log_error(NGX_LOG_ALERT, log, errno,
                       "getrlimit(RLIMIT_NOFILE) failed)");
         return NGX_ERROR;
     }
 
+    // 设置最大连接数 1024
     ngx_max_sockets = (ngx_int_t) rlmt.rlim_cur;
 
 #if (NGX_HAVE_INHERITED_NONBLOCK)

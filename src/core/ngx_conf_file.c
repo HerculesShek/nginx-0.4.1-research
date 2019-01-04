@@ -664,14 +664,19 @@ ngx_conf_include(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     return ngx_conf_parse(cf, &file);
 }
 
-
+/**
+ * 把命令行传入的配置文件路径 转为绝对路径
+ * @param cycle
+ * @param name
+ * @return
+ */
 ngx_int_t
 ngx_conf_full_name(ngx_cycle_t *cycle, ngx_str_t *name)
 {
     u_char     *p;
     ngx_str_t   old;
 
-    if (name->data[0] == '/') {
+    if (name->data[0] == '/') { /*如果是绝对路径 直接返回*/
         return NGX_OK;
     }
 

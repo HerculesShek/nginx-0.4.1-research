@@ -11,7 +11,9 @@
 #include <ngx_config.h>
 #include <ngx_core.h>
 
-
+/**
+ * 进程间共享内存
+ */
 typedef struct {
     u_char      *addr;
     size_t       size;

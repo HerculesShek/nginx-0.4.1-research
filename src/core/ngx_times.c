@@ -211,13 +211,26 @@ ngx_http_cookie_time(u_char *buf, time_t t)
                        tm.ngx_tm_sec);
 }
 
-
+/**
+ * 使用unix时间戳(秒数)计算格林威治时间 包括：
+ *      秒
+ *      分
+ *      小时
+ *      当月第几天
+ *      月
+ *      年
+ *      本周第几天
+ *      本年第几天
+ *
+ * @param t
+ * @param tp
+ */
 void
 ngx_gmtime(time_t t, ngx_tm_t *tp)
 {
     ngx_int_t  sec, min, hour, mday, mon, year, wday, yday, days;
 
-    days = t / 86400;
+    days = t / 86400; // 一天有86400秒
 
     /* Jaunary 1, 1970 was Thursday */
     wday = (4 + days) % 7;

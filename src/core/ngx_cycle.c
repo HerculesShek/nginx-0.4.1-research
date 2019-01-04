@@ -21,6 +21,7 @@ ngx_array_t            ngx_old_cycles;
 static ngx_pool_t     *ngx_temp_pool;
 static ngx_event_t     ngx_cleaner_event;
 
+// 仅仅是测试配置文件
 ngx_uint_t             ngx_test_config;
 
 #if (NGX_THREADS)
@@ -79,8 +80,8 @@ ngx_init_cycle(ngx_cycle_t *old_cycle)
     cycle->pool = pool;
     cycle->log = log;
     cycle->old_cycle = old_cycle;
-    cycle->root.len = sizeof(NGX_PREFIX) - 1;
-    cycle->root.data = (u_char *) NGX_PREFIX;
+    cycle->root.len = sizeof(NGX_PREFIX) - 1; // sizeof 是物理内存 是加上了'\0'的
+    cycle->root.data = (u_char *) NGX_PREFIX; // 而这里是想保存实际长度
 
 
     cycle->conf_file.len = old_cycle->conf_file.len;
