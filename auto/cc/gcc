@@ -171,7 +171,8 @@ esac
 
 
 # stop on warning
-CFLAGS="$CFLAGS -Werror"
+# todo will remove this
+#CFLAGS="$CFLAGS -Werror"
 
 # debug
 CFLAGS="$CFLAGS -g"
